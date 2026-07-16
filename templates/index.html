@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reddit 商业创意分析</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+        header h1 { font-size: 28px; margin-bottom: 8px; }
+        header p { opacity: 0.9; font-size: 15px; }
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+        }
+        .tab-btn {
+            padding: 10px 24px;
+            border: none;
+            background: white;
+            color: #666;
+            cursor: pointer;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        .tab-btn:hover { background: #e9ecef; }
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 28px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+            margin-bottom: 20px;
+        }
+        .card h2 { font-size: 18px; margin-bottom: 16px; color: #1a202c; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #374151;
+            font-size: 14px;
+        }
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.2s;
+        }
+        .form-group input[type="text"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .radio-group {
+            display: flex;
+            gap: 16px;
+        }
+        .radio-option {
+            flex: 1;
+            padding: 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .radio-option:hover { border-color: #c7d2fe; }
+        .radio-option.selected {
+            border-color: #667eea;
+            background: #eef2ff;
+        }
+        .radio-option strong { display: block; margin-bottom: 4px; }
+        .radio-option span { font-size: 13px; color: #6b7280; }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-secondary:hover { background: #e5e7eb; }
+        .progress-container { margin: 24px 0; }
+        .progress-bar {
+            width: 100%;
+            height: 12px;
+            background: #e5e7eb;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            border-radius: 6px;
+            transition: width 0.5s ease;
+        }
+        .progress-text {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 8px;
+            font-size: 14px;
+            color: #6b7280;
+        }
+        .result-header {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .metric-card {
+            background: #f9fafb;
+            padding: 16px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .metric-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1a202c;
+        }
+        .metric-card .label {
+            font-size: 13px;
+            color: #6b7280;
+            margin-top: 4px;
+        }
+        .score-high { color: #059669 !important; }
+        .score-medium { color: #d97706 !important; }
+        .score-low { color: #dc2626 !important; }
+        .summary-box {
+            background: #f0f9ff;
+            border-left: 4px solid #0ea5e9;
+            padding: 16px 20px;
+            border-radius: 0 8px 8px 0;
+            margin-bottom: 20px;
+        }
+        .summary-box h3 { font-size: 15px; margin-bottom: 8px; color: #0c4a6e; }
+        .summary-box p { color: #374151; font-size: 14px; }
+        .report-frame {
+            width: 100%;
+            height: 700px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .report-list { list-style: none; }
+        .report-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        .report-item:last-child { border-bottom: none; }
+        .report-info { flex: 1; }
+        .report-info .idea { font-weight: 600; color: #1a202c; margin-bottom: 4px; }
+        .report-info .meta { font-size: 13px; color: #6b7280; }
+        .report-actions { display: flex; gap: 8px; }
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #9ca3af;
+        }
+        .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+        .feature-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        .feature-item {
+            padding: 16px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+        .feature-item .icon { font-size: 24px; margin-bottom: 8px; }
+        .feature-item strong { display: block; margin-bottom: 4px; color: #1a202c; }
+        .feature-item span { font-size: 13px; color: #6b7280; }
+        .hidden { display: none !important; }
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            width: 95%;
+            max-width: 1200px;
+            height: 90vh;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .modal-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .modal-header h3 { font-size: 16px; }
+        .modal-body { flex: 1; overflow: hidden; }
+        .modal-body iframe { width: 100%; height: 100%; border: none; }
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6b7280;
+            padding: 0 8px;
+        }
+        .close-btn:hover { color: #374151; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Reddit 商业创意分析</h1>
+            <p>输入你的商业创意，系统自动从 Reddit 抓取讨论并生成市场验证报告</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('analyze')">🔍 新建分析</button>
+            <button class="tab-btn" onclick="switchTab('history')">📂 历史报告</button>
+        </div>
+
+        <div id="tab-analyze" class="tab-content active">
+            <div class="card">
+                <h2>开始新的分析</h2>
+
+                <div class="form-group">
+                    <label>💡 业务创意</label>
+                    <input type="text" id="ideaInput" placeholder="例如：AI productivity tools、AI 写作助手、远程协作工具...">
+                </div>
+
+                <div class="form-group">
+                    <label>⚙️ 分析模式</label>
+                    <div class="radio-group">
+                        <div class="radio-option selected" data-mode="full" onclick="selectMode('full')">
+                            <strong>完整模式</strong>
+                            <span>数据全面，深度分析（约 15-20 分钟）</span>
+                        </div>
+                        <div class="radio-option" data-mode="fast" onclick="selectMode('fast')">
+                            <strong>快速模式</strong>
+                            <span>数据精简，快速验证（约 5-8 分钟）</span>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn-primary" id="startBtn" onclick="startAnalysis()">🚀 开始分析</button>
+
+                <div class="feature-list">
+                    <div class="feature-item">
+                        <div class="icon">🕸️</div>
+                        <strong>Reddit 数据抓取</strong>
+                        <span>自动搜索相关帖子和评论</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon">🤖</div>
+                        <strong>AI 智能分析</strong>
+                        <span>LLM 提取痛点、需求和市场信号</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon">📊</div>
+                        <strong>综合评分</strong>
+                        <span>0-100 分市场验证评分</span>
+                    </div>
+                    <div class="feature-item">
+                        <div class="icon">📄</div>
+                        <strong>HTML 报告</strong>
+                        <span>完整可视化报告，可下载保存</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="progressCard" class="card hidden">
+                <h2>分析进度</h2>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                    </div>
+                    <div class="progress-text">
+                        <span id="progressMessage">准备中...</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div id="resultCard" class="card hidden">
+                <h2>分析结果</h2>
+                <div class="result-header">
+                    <div class="metric-card">
+                        <div class="value" id="resultScore">--</div>
+                        <div class="label">综合评分</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="value" id="resultPosts">--</div>
+                        <div class="label">分析帖子数</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="value" id="resultComments">--</div>
+                        <div class="label">分析评论数</div>
+                    </div>
+                </div>
+                <div class="summary-box">
+                    <h3>📝 市场验证摘要</h3>
+                    <p id="resultSummary">--</p>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <button class="btn-primary" onclick="viewReport()">👁️ 查看完整报告</button>
+                    <button class="btn-secondary" onclick="downloadReport()">📥 下载报告</button>
+                    <button class="btn-secondary" onclick="resetAnalysis()">🔄 重新分析</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="tab-history" class="tab-content">
+            <div class="card">
+                <h2>历史报告</h2>
+                <div id="historyList"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="reportModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">报告</h3>
+                <button class="close-btn" onclick="closeModal()">✕</button>
+            </div>
+            <div class="modal-body">
+                <iframe id="reportFrame" src=""></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentTaskId = null;
+        let currentReportFile = null;
+        let pollTimer = null;
+        let selectedMode = 'full';
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById('tab-' + tab).classList.add('active');
+            if (tab === 'history') loadHistory();
+        }
+
+        function selectMode(mode) {
+            selectedMode = mode;
+            document.querySelectorAll('.radio-option').forEach(el => {
+                el.classList.toggle('selected', el.dataset.mode === mode);
+            });
+        }
+
+        async function startAnalysis() {
+            const idea = document.getElementById('ideaInput').value.trim();
+            if (!idea) {
+                alert('请输入业务创意');
+                return;
+            }
+
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('progressCard').classList.remove('hidden');
+            document.getElementById('resultCard').classList.add('hidden');
+
+            try {
+                const res = await fetch('/api/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        idea: idea,
+                        fast_mode: selectedMode === 'fast'
+                    })
+                });
+                const data = await res.json();
+                currentTaskId = data.task_id;
+                pollProgress();
+            } catch (e) {
+                alert('启动失败: ' + e.message);
+                document.getElementById('startBtn').disabled = false;
+            }
+        }
+
+        function pollProgress() {
+            if (pollTimer) clearInterval(pollTimer);
+            pollTimer = setInterval(async () => {
+                try {
+                    const res = await fetch('/api/tasks/' + currentTaskId);
+                    const task = await res.json();
+
+                    document.getElementById('progressFill').style.width = task.progress + '%';
+                    document.getElementById('progressPercent').textContent = task.progress + '%';
+                    document.getElementById('progressMessage').textContent = task.message;
+
+                    if (task.status === 'completed') {
+                        clearInterval(pollTimer);
+                        showResult(task.result);
+                    } else if (task.status === 'failed') {
+                        clearInterval(pollTimer);
+                        alert('分析失败: ' + (task.error || task.message));
+                        document.getElementById('startBtn').disabled = false;
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }, 2000);
+        }
+
+        function showResult(result) {
+            currentReportFile = result.report_filename;
+            document.getElementById('resultCard').classList.remove('hidden');
+            document.getElementById('startBtn').disabled = false;
+
+            const scoreEl = document.getElementById('resultScore');
+            scoreEl.textContent = result.score + '/100';
+            scoreEl.className = 'value';
+            const score = parseInt(result.score) || 0;
+            if (score >= 80) scoreEl.classList.add('score-high');
+            else if (score >= 60) scoreEl.classList.add('score-medium');
+            else scoreEl.classList.add('score-low');
+
+            document.getElementById('resultPosts').textContent = result.posts;
+            document.getElementById('resultComments').textContent = result.comments;
+            document.getElementById('resultSummary').textContent = result.summary || '暂无摘要';
+        }
+
+        function resetAnalysis() {
+            document.getElementById('resultCard').classList.add('hidden');
+            document.getElementById('progressCard').classList.add('hidden');
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressPercent').textContent = '0%';
+            document.getElementById('progressMessage').textContent = '准备中...';
+            document.getElementById('startBtn').disabled = false;
+            currentTaskId = null;
+            currentReportFile = null;
+        }
+
+        function viewReport() {
+            if (!currentReportFile) return;
+            document.getElementById('modalTitle').textContent = '分析报告 - ' + currentReportFile;
+            document.getElementById('reportFrame').src = '/reports/' + currentReportFile;
+            document.getElementById('reportModal').classList.remove('hidden');
+        }
+
+        function downloadReport() {
+            if (!currentReportFile) return;
+            window.open('/reports/' + currentReportFile, '_blank');
+        }
+
+        function closeModal() {
+            document.getElementById('reportModal').classList.add('hidden');
+            document.getElementById('reportFrame').src = '';
+        }
+
+        async function loadHistory() {
+            const container = document.getElementById('historyList');
+            container.innerHTML = '<p style="color:#9ca3af;text-align:center;padding:20px;">加载中...</p>';
+
+            try {
+                const res = await fetch('/api/reports');
+                const data = await res.json();
+                const reports = data.reports;
+
+                if (reports.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">📭</div>
+                            <p>暂无历史报告</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                let html = '<ul class="report-list">';
+                reports.forEach(r => {
+                    html += `
+                        <li class="report-item">
+                            <div class="report-info">
+                                <div class="idea">${escapeHtml(r.idea)}</div>
+                                <div class="meta">${r.created_at} · ${r.size_kb} KB</div>
+                            </div>
+                            <div class="report-actions">
+                                <button class="btn-secondary" onclick="viewHistoryReport('${r.filename}', '${escapeHtml(r.idea)}')">查看</button>
+                                <button class="btn-secondary" onclick="downloadHistoryReport('${r.filename}')">下载</button>
+                            </div>
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                container.innerHTML = html;
+            } catch (e) {
+                container.innerHTML = '<p style="color:#dc2626;">加载失败: ' + e.message + '</p>';
+            }
+        }
+
+        function viewHistoryReport(filename, idea) {
+            document.getElementById('modalTitle').textContent = '报告 - ' + idea;
+            document.getElementById('reportFrame').src = '/reports/' + filename;
+            document.getElementById('reportModal').classList.remove('hidden');
+        }
+
+        function downloadHistoryReport(filename) {
+            window.open('/reports/' + filename, '_blank');
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.appendChild(document.createTextNode(text));
+            return div.innerHTML;
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        document.getElementById('reportModal').addEventListener('click', (e) => {
+            if (e.target.id === 'reportModal') closeModal();
+        });
+    </script>
+</body>
+</html>
