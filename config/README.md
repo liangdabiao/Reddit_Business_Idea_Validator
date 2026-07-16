@@ -116,7 +116,7 @@ pip install -r requirements.txt
 
 # 配置 API 密钥 (编辑 agent_system/.env 文件)
 # OPENAI_API_KEY=your_key
-# TIKHUB_TOKEN=your_token
+ 
 
 # 运行验证
 python run_agent.py 在深圳卖陈皮

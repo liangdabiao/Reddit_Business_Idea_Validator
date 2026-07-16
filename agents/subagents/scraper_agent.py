@@ -1,7 +1,7 @@
 """
 数据抓取 Agent
 
-负责从小红书抓取笔记和评论数据
+负责从 Reddit 抓取帖子和评论数据
 """
 
 import logging
@@ -28,12 +28,12 @@ class ScraperAgent(BaseAgent):
     数据抓取 Agent
 
     职责:
-    1. 根据关键词搜索小红书笔记
-    2. 获取笔记评论
+    1. 根据关键词搜索 Reddit 帖子
+    2. 获取帖子评论
     3. 批量抓取数据
 
     Skills:
-    - search_posts: 搜索笔记
+    - search_posts: 搜索帖子
     - get_comments: 获取评论
     - batch_get_comments: 批量获取评论
     - batch_scrape: 批量抓取
@@ -191,7 +191,7 @@ class ScraperAgent(BaseAgent):
         self.update_progress("fetching_comments", 0.5, f"正在获取帖子 {post_id} 的评论...")
 
         # 调用 skill
-        result = await get_comments_skill(self, note_id, limit)
+        result = await get_comments_skill(self, post_id, limit)
 
         if result.get("success"):
             self.update_progress("fetching_comments", 1.0, f"获取了 {result['total_count']} 条评论")

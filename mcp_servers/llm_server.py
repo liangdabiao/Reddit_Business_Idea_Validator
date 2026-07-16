@@ -48,10 +48,29 @@ class LLMClient:
         self.max_tokens = max_tokens
         self._client = None
 
+        # 检测是否为 reasoning model（推理模型）
+        # 这些模型会先输出 reasoning_content，再输出最终 content
+        self.is_reasoning_model = self._detect_reasoning_model(model_name)
+
         # 请求日志记录器
         self.request_logger = RequestLogger(logger)
 
-        logger.info(f"LLM Client initialized: model={model_name}")
+        logger.info(f"LLM Client initialized: model={model_name}, reasoning_model={self.is_reasoning_model}")
+
+    def _detect_reasoning_model(self, model_name: str) -> bool:
+        """
+        检测是否为 reasoning model（推理模型）
+
+        推理模型（如 deepseek-v4-flash, o1, o3, deepseek-r1 等）会先生成推理过程
+        """
+        if not model_name:
+            return False
+        model_lower = model_name.lower()
+        reasoning_keywords = [
+            'reasoner', 'r1', 'flash', 'o1', 'o3', 'reasoning', 'think',
+            'deepseek-v4-flash', 'deepseek-v3-flash', 'qwq', 'qwen-qwq'
+        ]
+        return any(kw in model_lower for kw in reasoning_keywords)
 
     async def start(self):
         """启动客户端"""
@@ -105,9 +124,21 @@ class LLMClient:
                 "prompt_length": len(prompt),
                 "prompt_preview": prompt[:200] + "..." if len(prompt) > 200 else prompt,
                 "max_tokens": max_tokens or self.max_tokens,
-                "temperature": temperature if temperature is not None else self.temperature
+                "temperature": temperature if temperature is not None else self.temperature,
+                "is_reasoning_model": self.is_reasoning_model
             }
         )
+
+        # 对于 reasoning model，确保 max_tokens 足够大
+        # reasoning model 会先用掉大量 token 做推理
+        effective_max_tokens = max_tokens or self.max_tokens
+        if self.is_reasoning_model and effective_max_tokens < 8000:
+            logger.warning(
+                f"Reasoning model {self.model_name} detected. "
+                f"max_tokens={effective_max_tokens} may be too small. "
+                f"Auto-increasing to 8000."
+            )
+            effective_max_tokens = 8000
 
         start_time = time.time()
 
@@ -118,13 +149,25 @@ class LLMClient:
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=max_tokens or self.max_tokens,
+                max_tokens=effective_max_tokens,
                 temperature=temperature if temperature is not None else self.temperature,
-                timeout=30.0  # 添加超时
+                timeout=120.0  # reasoning model 需要更长时间
             )
 
             duration_ms = (time.time() - start_time) * 1000
-            content = response.choices[0].message.content
+            message = response.choices[0].message
+            content = message.content or ""
+
+            # 提取 reasoning_content（如果存在）
+            reasoning_content = getattr(message, 'reasoning_content', None) or ""
+
+            # 如果 content 为空但 reasoning_content 有内容，记录警告
+            if not content.strip() and reasoning_content.strip():
+                logger.warning(
+                    f"Reasoning model {self.model_name} returned empty content "
+                    f"but has reasoning_content (length={len(reasoning_content)}). "
+                    f"This may indicate max_tokens was exhausted by reasoning."
+                )
 
             # 记录响应日志
             self.request_logger.log_response(
@@ -132,12 +175,13 @@ class LLMClient:
                 body={
                     "model": self.model_name,
                     "response_length": len(content),
+                    "reasoning_length": len(reasoning_content),
                     "finish_reason": response.choices[0].finish_reason,
                     "usage": {
                         "prompt_tokens": response.usage.prompt_tokens,
                         "completion_tokens": response.usage.completion_tokens,
                         "total_tokens": response.usage.total_tokens
-                    }
+                    } if response.usage else None
                 },
                 duration_ms=duration_ms
             )
@@ -420,21 +464,30 @@ class LLMMCPServer:
         start_time = datetime.now()
 
         try:
-            # 发送一个简单的测试请求
-            test_response = await self._client.generate_text(
-                prompt="Reply with just: OK",
-                max_tokens=10
-            )
+            # 对于 reasoning model，使用更简单的 prompt 并分配足够 token
+            if self._client and self._client.is_reasoning_model:
+                test_response = await self._client.generate_text(
+                    prompt="回复一个字：好",
+                    max_tokens=2000
+                )
+                success_check = lambda r: "好" in r or len(r.strip()) > 0
+            else:
+                test_response = await self._client.generate_text(
+                    prompt="Reply with just: OK",
+                    max_tokens=10
+                )
+                success_check = lambda r: "OK" in r
 
             execution_time = (datetime.now() - start_time).total_seconds()
 
-            if "OK" in test_response:
+            if success_check(test_response):
                 logger.info(f"LLM API connection test successful in {execution_time:.2f}s")
                 return {
                     "success": True,
                     "model": self.model_name,
                     "base_url": self.base_url,
                     "message": f"连接成功，响应时间: {execution_time:.2f}s",
+                    "response_preview": test_response[:100],
                     "execution_time": execution_time
                 }
             else:
@@ -443,7 +496,7 @@ class LLMMCPServer:
                     "success": False,
                     "model": self.model_name,
                     "base_url": self.base_url,
-                    "message": f"响应异常: {test_response}",
+                    "message": f"响应异常: {test_response[:100]}",
                     "execution_time": execution_time
                 }
 

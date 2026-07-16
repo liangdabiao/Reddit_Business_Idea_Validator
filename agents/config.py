@@ -41,15 +41,6 @@ class MCPConfig:
 
 
 @dataclass
-class XHSMCPConfig(MCPConfig):
-    """小红书 MCP 配置"""
-    auth_token: str = ""
-    request_delay: float = 1.0
-    max_concurrent: int = 5
-    base_url: str = "https://api.tikhub.io"
-
-
-@dataclass
 class RedditMCPConfig(MCPConfig):
     """Reddit MCP 配置"""
     client_id: str = ""
@@ -177,9 +168,7 @@ class ConfigManager:
 
     def _load_from_env(self):
         """从环境变量加载配置"""
-        # XHS Token
-        if 'TIKHUB_TOKEN' in os.environ:
-            self._set_nested('mcp.xhs.auth_token', os.environ['TIKHUB_TOKEN'])
+       
 
         # Reddit Client ID
         if 'REDDIT_CLIENT_ID' in os.environ:
@@ -200,6 +189,11 @@ class ConfigManager:
         # OpenAI Base URL
         if 'OPENAI_BASE_URL' in os.environ:
             self._set_nested('llm.base_url', os.environ['OPENAI_BASE_URL'])
+
+        # OpenAI Model Name
+        if 'OPENAI_MODEL' in os.environ:
+            self._set_nested('llm.model_name', os.environ['OPENAI_MODEL'])
+            logger.info(f"Loaded OPENAI_MODEL from env: {os.environ['OPENAI_MODEL']}")
 
         # Redis URL
         if 'REDIS_URL' in os.environ:
@@ -234,14 +228,7 @@ class ConfigManager:
         """获取默认配置"""
         return {
             'mcp': {
-                'xhs': {
-                    'host': 'localhost',
-                    'port': 8001,
-                    'auth_token': os.getenv('TIKHUB_TOKEN', ''),  # 安全：从环境变量读取，无硬编码默认值
-                    'request_delay': 1.0,
-                    'max_concurrent': 5,
-                    'base_url': 'https://api.tikhub.io'
-                },
+                 
                 'reddit': {
                     'host': 'localhost',
                     'port': 8004,
@@ -346,17 +333,6 @@ class ConfigManager:
         """
         self._set_nested(key, value)
 
-    def get_xhs_mcp_config(self) -> XHSMCPConfig:
-        """获取小红书 MCP 配置"""
-        return XHSMCPConfig(
-            host=self.get('mcp.xhs.host', 'localhost'),
-            port=self.get('mcp.xhs.port', 8001),
-            auth_token=self.get('mcp.xhs.auth_token', ''),
-            request_delay=self.get('mcp.xhs.request_delay', 1.0),
-            max_concurrent=self.get('mcp.xhs.max_concurrent', 5),
-            base_url=self.get('mcp.xhs.base_url', 'https://api.tikhub.io')
-        )
-
     def get_reddit_mcp_config(self) -> RedditMCPConfig:
         """获取 Reddit MCP 配置"""
         return RedditMCPConfig(
@@ -371,11 +347,16 @@ class ConfigManager:
 
     def get_llm_config(self) -> LLMConfig:
         """获取 LLM 配置"""
+        base_url = self.get('llm.base_url', 'https://api.openai.com/v1')
+        # DeepSeek 等 OpenAI 兼容 API 必须以 /v1 结尾
+        if base_url and not base_url.rstrip('/').endswith('/v1'):
+            base_url = base_url.rstrip('/') + '/v1'
+
         return LLMConfig(
             provider=self.get('llm.provider', 'openai'),
             model_name=self.get('llm.model_name', 'gpt-4o'),
             api_key=self.get('llm.api_key', ''),
-            base_url=self.get('llm.base_url', 'https://api.openai.com/v1'),
+            base_url=base_url,
             temperature=self.get('llm.temperature', 0.7),
             max_tokens=self.get('llm.max_tokens', 12000)
         )

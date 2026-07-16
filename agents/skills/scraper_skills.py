@@ -465,7 +465,7 @@ def _merge_comments_to_posts(
     posts_with_comments = []
 
     for post in posts:
-        post_id = post.get("note_id")
+        post_id = post.get("post_id")
         post_copy = post.copy()
 
         # Add comments to post
@@ -490,28 +490,17 @@ def convert_reddit_post_to_unified(reddit_post: Dict[str, Any]) -> Dict[str, Any
         统一格式的帖子数据
     """
     unified_post = {
-        "note_id": reddit_post.get("post_id"),
+        "post_id": reddit_post.get("post_id"),
         "title": reddit_post.get("title", ""),
-        "desc": reddit_post.get("content", ""),
-        "type": "text",
-        "publish_time": reddit_post.get("created_utc", 0),
-        "liked_count": reddit_post.get("score", 0),
-        "collected_count": 0,
-        "shared_count": 0,
-        "comments_count": reddit_post.get("num_comments", 0),
-        "user_id": reddit_post.get("author", ""),
-        "user_nickname": reddit_post.get("author", ""),
-        "user_avatar": None,
-        "cover_url": None,
-        "images": [],
-        "keyword_matched": reddit_post.get("keyword_matched"),
-        
+        "content": reddit_post.get("content", ""),
         "url": reddit_post.get("url"),
-        "score": reddit_post.get("score"),
-        "upvote_ratio": reddit_post.get("upvote_ratio"),
-        "subreddit": reddit_post.get("subreddit"),
-        "author": reddit_post.get("author"),
-        
+        "score": reddit_post.get("score", 0),
+        "upvote_ratio": reddit_post.get("upvote_ratio", 0),
+        "subreddit": reddit_post.get("subreddit", ""),
+        "num_comments": reddit_post.get("num_comments", 0),
+        "created_utc": reddit_post.get("created_utc", 0),
+        "author": reddit_post.get("author", ""),
+        "keyword_matched": reddit_post.get("keyword_matched"),
         "comments_data": [],
         "comments_fetched": False,
         "comments_fetch_error": None
@@ -532,17 +521,12 @@ def convert_reddit_comment_to_unified(reddit_comment: Dict[str, Any]) -> Dict[st
     """
     unified_comment = {
         "comment_id": reddit_comment.get("comment_id"),
-        "note_id": reddit_comment.get("post_id"),
-        "content": reddit_comment.get("body", ""),
-        "publish_time": reddit_comment.get("created_utc", 0),
-        "ip_location": None,
-        "like_count": reddit_comment.get("score", 0),
-        "user_id": reddit_comment.get("author", ""),
-        "user_nickname": reddit_comment.get("author", ""),
-        "parent_comment_id": reddit_comment.get("parent_id"),
-        
-        "score": reddit_comment.get("score"),
-        "author": reddit_comment.get("author"),
+        "post_id": reddit_comment.get("post_id"),
+        "body": reddit_comment.get("body", ""),
+        "score": reddit_comment.get("score", 0),
+        "created_utc": reddit_comment.get("created_utc", 0),
+        "author": reddit_comment.get("author", ""),
+        "parent_id": reddit_comment.get("parent_id"),
         "depth": reddit_comment.get("depth", 0)
     }
     

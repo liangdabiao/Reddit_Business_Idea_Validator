@@ -722,7 +722,7 @@ async def generate_html_report_skill(
             liked_count = post.get('liked_count', 0)
             collected_count = post.get('collected_count', 0)
             shared_count = post.get('shared_count', 0)
-            comments_count = post.get('comments_count', 0)
+            comments_count = post.get('comments_count', post.get('num_comments', 0))
             total_engagement = post.get('total_engagement', 0)
             engagement_score = post.get('engagement_score', 0)
             sentiment = post.get('sentiment', 'neutral')
@@ -805,7 +805,7 @@ async def generate_html_report_skill(
                 """
 
                 for comment in comments[:5]:
-                    comment_content = comment.get('content', comment.get('note', ''))
+                    comment_content = comment.get('body', comment.get('content', comment.get('note', '')))
                     if comment_content:
                         html += f"""
                     <div class="top-post-comment">{comment_content[:200]}{'...' if len(comment_content) > 200 else ''}</div>

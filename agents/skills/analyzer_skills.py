@@ -1,7 +1,7 @@
 """
 数据分析 Skills
 
-提供笔记和评论分析的业务技能
+提供帖子和评论分析的业务技能
 """
 
 import asyncio
@@ -10,9 +10,6 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 
 from models.business_models import (
-    XhsNoteModel,
-    XhsCommentModel,
-    XhsPostAnalysis,
     PostWithCommentsAnalysis,
     CombinedAnalysis,
     CommentsAnalysis,
@@ -29,57 +26,58 @@ logger = logging.getLogger(__name__)
 
 async def analyze_post_skill(
     agent: BaseAgent,
-    note: Dict[str, Any],
+    post: Dict[str, Any],
     business_idea: str,
     max_retries: int = 2
 ) -> Dict[str, Any]:
     """
-    分析单条笔记
+    分析单条帖子
 
     Args:
         agent: Agent 实例
-        note: 笔记数据
+        post: 帖子数据
         business_idea: 业务创意
         max_retries: 最大重试次数
 
     Returns:
         分析结果
     """
-    note_id = note.get('note_id', 'unknown')
-    logger.info(f"Analyzing note: {note.get('title', 'Unknown')} (id={note_id})")
+    post_id = post.get('post_id', 'unknown')
+    logger.info(f"Analyzing post: {post.get('title', 'Unknown')} (id={post_id})")
 
     # 构建分析提示
     note_text = f"""
-标题: {note.get('title', '')}
-描述: {note.get('desc', '')}
-点赞: {note.get('liked_count', 0)}
-收藏: {note.get('collected_count', 0)}
-评论: {note.get('comments_count', 0)}
-作者: {note.get('user_nickname', '')}
+标题: {post.get('title', '')}
+内容: {post.get('content', '')}
+得分: {post.get('score', 0)}
+点赞率: {post.get('upvote_ratio', 0)}
+评论数: {post.get('num_comments', 0)}
+作者: {post.get('author', '')}
+子版块: r/{post.get('subreddit', '')}
 """
 
     prompt = f"""
-你是一位市场分析专家。请分析以下小红书笔记与业务创意的相关性：
+你是一位市场分析专家。请分析以下 Reddit 帖子与业务创意的相关性：
 
 业务创意："{business_idea}"
 
-笔记内容：
+帖子内容：
 {note_text}
 
 请分析：
-1. 相关性：这个笔记是否与业务创意相关？
-   【重要】相关性判断要宽松：只要笔记内容与业务创意有**一定关联**（包括直接相关、间接相关等），都应该判断为相关。
+1. 相关性：这个帖子是否与业务创意相关？
+   【重要】相关性判断要宽松：只要帖子内容与业务创意有**一定关联**（包括直接相关、间接相关等），都应该判断为相关。
    - 直接相关：明确提到业务创意相关的产品/服务
    - 间接相关：提到相关场景、用户需求、痛点等
    
-2. 用户痛点：从笔记中提取的用户痛点或需求
-3. 解决方案：笔记中提到的解决方案或产品
-4. 市场信号：笔记反映的市场趋势或信号
+2. 用户痛点：从帖子中提取的用户痛点或需求
+3. 解决方案：帖子中提到的解决方案或产品
+4. 市场信号：帖子反映的市场趋势或信号
 5. 情感倾向（sentiment）：
-   - positive（正面）：笔记内容积极、充满希望、表达认可或支持
-   - negative（负面）：笔记内容消极、表达担忧、不满或反对
-   - neutral（中性）：笔记内容客观描述，或无明显情感倾向
-   注意：只有当笔记确实没有明显情感倾向时才使用neutral，不要过度使用
+   - positive（正面）：帖子内容积极、充满希望、表达认可或支持
+   - negative（负面）：帖子内容消极、表达担忧、不满或反对
+   - neutral（中性）：帖子内容客观描述，或无明显情感倾向
+   注意：只有当帖子确实没有明显情感倾向时才使用neutral，不要过度使用
 6. 互动评分：根据点赞/收藏/评论数给出1-10分的互动评分
 
 请以 JSON 格式返回：
@@ -98,12 +96,12 @@ async def analyze_post_skill(
     for attempt in range(max_retries + 1):
         try:
             if attempt > 0:
-                logger.warning(f"Retry attempt {attempt}/{max_retries} for note {note_id}")
+                logger.warning(f"Retry attempt {attempt}/{max_retries} for post {post_id}")
                 await asyncio.sleep(2 ** attempt)  # 指数退避
 
             result = await agent.use_llm(
                 prompt=prompt,
-                response_model=XhsPostAnalysis
+                response_model=PostWithCommentsAnalysis
             )
 
             if hasattr(result, 'model_dump'):
@@ -115,33 +113,33 @@ async def analyze_post_skill(
 
             return {
                 "success": True,
-                "note_id": note_id,
+                "post_id": post_id,
                 "analysis": analysis
             }
 
         except (ValueError, ConnectionError, TimeoutError) as e:
             # 可重试的错误
             if attempt < max_retries:
-                logger.warning(f"Attempt {attempt + 1} failed for note {note_id}: {type(e).__name__}: {e}")
+                logger.warning(f"Attempt {attempt + 1} failed for post {post_id}: {type(e).__name__}: {e}")
                 # 如果是 ValueError，打印更详细的信息
                 if isinstance(e, ValueError):
                     import traceback
-                    logger.debug(f"ValueError traceback for note {note_id}:\n{''.join(traceback.format_tb(e.__traceback__))}")
+                    logger.debug(f"ValueError traceback for post {post_id}:\n{''.join(traceback.format_tb(e.__traceback__))}")
                 continue
             else:
-                logger.error(f"All retries exhausted for note {note_id}: {type(e).__name__}: {e}")
+                logger.error(f"All retries exhausted for post {post_id}: {type(e).__name__}: {e}")
                 # 如果是 ValueError，打印更详细的信息
                 if isinstance(e, ValueError):
                     import traceback
-                    logger.error(f"ValueError details for note {note_id}:\n{''.join(traceback.format_tb(e.__traceback__))}")
+                    logger.error(f"ValueError details for post {post_id}:\n{''.join(traceback.format_tb(e.__traceback__))}")
 
                 # 使用 fallback 分析
-                fallback_analysis = _fallback_analysis(note, business_idea)
-                logger.info(f"Using fallback analysis for note {note_id}")
+                fallback_analysis = _fallback_analysis(post, business_idea)
+                logger.info(f"Using fallback analysis for post {post_id}")
 
                 return {
                     "success": False,
-                    "note_id": note_id,
+                    "post_id": post_id,
                     "analysis": fallback_analysis,
                     "error": str(e),
                     "error_type": type(e).__name__,
@@ -150,10 +148,10 @@ async def analyze_post_skill(
 
         except Exception as e:
             # 不可重试的错误（如 JSON 解析错误）
-            logger.error(f"Analyze post skill failed for note {note_id}: {type(e).__name__}: {e}")
+            logger.error(f"Analyze post skill failed for post {post_id}: {type(e).__name__}: {e}")
             return {
                 "success": False,
-                "note_id": note_id,
+                "post_id": post_id,
                 "analysis": {
                     "relevant": False,
                     "pain_points": [],
@@ -188,26 +186,19 @@ async def analyze_post_with_comments_skill(
     Returns:
         分析结果
     """
-    note_id = post_with_comments.get('note_id', 'unknown')
+    post_id = post_with_comments.get('post_id', 'unknown')
     title = post_with_comments.get('title', 'Unknown')
-    logger.info(f"Analyzing post with comments: {title} (id={note_id})")
+    logger.info(f"Analyzing post with comments: {title} (id={post_id})")
 
     # 构建帖子内容
     post_text = f"""
 标题: {post_with_comments.get('title', '')}
-描述: {post_with_comments.get('desc', '')}
-点赞: {post_with_comments.get('liked_count', 0)}
-收藏: {post_with_comments.get('collected_count', 0)}
-评论: {post_with_comments.get('comments_count', 0)}
-作者: {post_with_comments.get('user_nickname', '')}
-"""
-
-    # 添加 Reddit 特有字段
-    if 'score' in post_with_comments:
-        post_text += f"""
+内容: {post_with_comments.get('content', '')}
 Reddit 评分: {post_with_comments.get('score', 0)}
 点赞比例: {post_with_comments.get('upvote_ratio', 0) * 100:.1f}%
 子版块: r/{post_with_comments.get('subreddit', 'unknown')}
+评论数: {post_with_comments.get('num_comments', 0)}
+作者: {post_with_comments.get('author', 'unknown')}
 帖子链接: {post_with_comments.get('url', 'N/A')}
 """
 
@@ -218,7 +209,7 @@ Reddit 评分: {post_with_comments.get('score', 0)}
         # 选取前20条评论进行分析（避免token过多）
         sample_comments = comments[:20]
         comments_text = "\n".join([
-            f"- [{c.get('user_nickname', 'Anonymous')}] {c.get('content', '')}"
+            f"- [u/{c.get('author', 'Anonymous')}] {c.get('body', '')}"
             for c in sample_comments
         ])
     else:
@@ -265,7 +256,7 @@ Reddit 评分: {post_with_comments.get('score', 0)}
 
 请以 JSON 格式返回：
 {{
-    "note_id": "{note_id}",
+    "post_id": "{post_id}",
     "title": "{title}",
     "relevant": true/false,
     "pain_points": ["痛点1", "痛点2"],
@@ -285,7 +276,7 @@ Reddit 评分: {post_with_comments.get('score', 0)}
     for attempt in range(max_retries + 1):
         try:
             if attempt > 0:
-                logger.warning(f"Retry attempt {attempt}/{max_retries} for post {note_id}")
+                logger.warning(f"Retry attempt {attempt}/{max_retries} for post {post_id}")
                 await asyncio.sleep(2 ** attempt)  # 指数退避
 
             result = await agent.use_llm(
@@ -298,36 +289,36 @@ Reddit 评分: {post_with_comments.get('score', 0)}
             else:
                 analysis = result
 
-            logger.info(f"Analysis complete for {note_id}: relevant={analysis.get('relevant')}, sentiment={analysis.get('sentiment')}")
+            logger.info(f"Analysis complete for {post_id}: relevant={analysis.get('relevant')}, sentiment={analysis.get('sentiment')}")
 
             # 添加 Reddit 特有字段到分析结果
             analysis["score"] = post_with_comments.get("score", 0)
             analysis["upvote_ratio"] = post_with_comments.get("upvote_ratio", 0)
             analysis["subreddit"] = post_with_comments.get("subreddit", "")
-            analysis["comments_count"] = len(comments)
-            analysis["publish_time"] = post_with_comments.get("created_utc", 0)
+            analysis["num_comments"] = len(comments)
+            analysis["created_utc"] = post_with_comments.get("created_utc", 0)
 
             return {
                 "success": True,
-                "note_id": note_id,
+                "post_id": post_id,
                 "analysis": analysis
             }
 
         except (ValueError, ConnectionError, TimeoutError) as e:
             # 可重试的错误
             if attempt < max_retries:
-                logger.warning(f"Attempt {attempt + 1} failed for post {note_id}: {type(e).__name__}: {e}")
+                logger.warning(f"Attempt {attempt + 1} failed for post {post_id}: {type(e).__name__}: {e}")
                 # 如果是 ValueError，打印更详细的信息
                 if isinstance(e, ValueError):
                     import traceback
-                    logger.debug(f"ValueError traceback for post {note_id}:\n{''.join(traceback.format_tb(e.__traceback__))}")
+                    logger.debug(f"ValueError traceback for post {post_id}:\n{''.join(traceback.format_tb(e.__traceback__))}")
                 continue
             else:
                 # 所有重试失败 - 跳过此帖子（不使用 fallback）
-                logger.error(f"All retries exhausted for post {note_id}: {type(e).__name__}: {e}")
+                logger.error(f"All retries exhausted for post {post_id}: {type(e).__name__}: {e}")
                 return {
                     "success": False,
-                    "note_id": note_id,
+                    "post_id": post_id,
                     "analysis": None,
                     "error": str(e),
                     "error_type": type(e).__name__,
@@ -336,10 +327,10 @@ Reddit 评分: {post_with_comments.get('score', 0)}
 
         except Exception as e:
             # 不可重试的错误
-            logger.error(f"Analyze post with comments skill failed for post {note_id}: {type(e).__name__}: {e}")
+            logger.error(f"Analyze post with comments skill failed for post {post_id}: {type(e).__name__}: {e}")
             return {
                 "success": False,
-                "note_id": note_id,
+                "post_id": post_id,
                 "analysis": None,
                 "error": str(e),
                 "error_type": type(e).__name__,
@@ -396,7 +387,7 @@ async def analyze_comments_skill(
     ])
 
     prompt = f"""
-你是一位用户洞察专家。请分析以下小红书评论，提取用户对业务创意的反馈：
+你是一位用户洞察专家。请分析以下 Reddit 评论，提取用户对业务创意的反馈：
 
 业务创意："{business_idea}"
 
@@ -501,11 +492,11 @@ async def batch_analyze_posts_skill(
     progress_callback: Optional[callable] = None
 ) -> Dict[str, Any]:
     """
-    批量分析笔记
+    批量分析帖子
 
     Args:
         agent: Agent 实例
-        posts: 笔记列表
+        posts: 帖子列表
         business_idea: 业务创意
         progress_callback: 进度回调
 
@@ -536,7 +527,7 @@ async def batch_analyze_posts_skill(
                 update = ProgressUpdate(
                     step="analyzing_posts",
                     progress=progress,
-                    message=f"正在分析笔记 {idx + 1}/{total}"
+                    message=f"正在分析帖子 {idx + 1}/{total}"
                 )
                 progress_callback(update)
 
@@ -545,7 +536,7 @@ async def batch_analyze_posts_skill(
             if result.get("success"):
                 analysis = result.get("analysis", {})
                 all_analyses.append({
-                    "note_id": post.get("note_id"),
+                    "post_id": post.get("post_id"),
                     "title": post.get("title"),
                     "analysis": analysis
                 })
@@ -574,7 +565,7 @@ async def batch_analyze_posts_skill(
             }
 
         except Exception as e:
-            logger.error(f"Failed to analyze post {post.get('note_id')}: {e}")
+            logger.error(f"Failed to analyze post {post.get('post_id')}: {e}")
             continue
 
     # 统计摘要
@@ -681,7 +672,7 @@ async def batch_analyze_posts_with_comments_skill(
             if result.get("success"):
                 analysis = result.get("analysis", {})
                 all_analyses.append({
-                    "note_id": post.get("note_id"),
+                    "post_id": post.get("post_id"),
                     "title": post.get("title"),
                     "analysis": analysis
                 })
@@ -699,7 +690,7 @@ async def batch_analyze_posts_with_comments_skill(
                     skipped_count += 1
                 # 记录日志但继续处理
                 logger.warning(
-                    f"Skipped post {post.get('note_id')}: "
+                    f"Skipped post {post.get('post_id')}: "
                     f"{result.get('error_type', 'Unknown')}"
                 )
 
@@ -724,7 +715,7 @@ async def batch_analyze_posts_with_comments_skill(
             }
 
         except Exception as e:
-            logger.error(f"Unexpected error analyzing post {post.get('note_id')}: {e}")
+            logger.error(f"Unexpected error analyzing post {post.get('post_id')}: {e}")
             failed_count += 1
             continue
 
@@ -846,7 +837,7 @@ async def analyze_comments_with_tags_skill(
             comments = post.get('comments_data', [])
             all_comments.extend(comments)
         else:
-            logger.debug(f"Skipping comments from post {post.get('note_id', 'unknown')} as it is not relevant to the business idea")
+            logger.debug(f"Skipping comments from post {post.get('post_id', 'unknown')} as it is not relevant to the business idea")
 
     total_comments = len(all_comments)
     if total_comments == 0:
@@ -1041,18 +1032,18 @@ async def analyze_comments_with_tags_skill(
             is_relevant = analysis.get('relevant', True)  # Default to True if not specified
 
             if not is_relevant:
-                logger.debug(f"Skipping post {post.get('note_id', 'unknown')} as it is not relevant to the business idea")
+                logger.debug(f"Skipping post {post.get('post_id', 'unknown')} as it is not relevant to the business idea")
                 continue
 
             # 获取该 Post 的所有评论
             comments = post.get('comments_data', [])
             if not comments:
-                logger.debug(f"No comments for post {post.get('note_id', 'unknown')}")
+                logger.debug(f"No comments for post {post.get('post_id', 'unknown')}")
                 continue
 
             # 合并该 Post 的所有评论为一个文本
             post_comments_text = "\n".join([
-                f"{i+1}. 用户: {c.get('user_nickname', 'Anonymous')}\n   评论: {c.get('content', '')}\n"
+                f"{i+1}. 用户: {c.get('author', 'Anonymous')}\n   评论: {c.get('body', '')}\n"
                 for i, c in enumerate(comments)
             ])
 
@@ -1068,7 +1059,7 @@ async def analyze_comments_with_tags_skill(
 - 负面评价：记为 -标签（例如：-易用性）
 
 ## 帖子信息
-帖子ID: {post.get('note_id', 'unknown')}
+帖子ID: {post.get('post_id', 'unknown')}
 帖子标题: {post.get('title', 'unknown')}
 子版块: {post.get('subreddit', 'unknown')}
 
@@ -1089,7 +1080,7 @@ async def analyze_comments_with_tags_skill(
             try:
                 logger.info("-" * 60)
                 logger.info(f"[LLM REQUEST] 开始分析帖子 {post_idx + 1}/{len(posts_with_comments)}")
-                logger.info(f"[LLM REQUEST] 帖子ID: {post.get('note_id')}")
+                logger.info(f"[LLM REQUEST] 帖子ID: {post.get('post_id')}")
                 logger.info(f"[LLM REQUEST] 帖子标题: {post.get('title', '')}")
                 logger.info(f"[LLM REQUEST] 评论数量: {len(comments)}")
                 logger.debug(f"[LLM REQUEST] Prompt 长度: {len(tagging_prompt)} 字符")
@@ -1101,7 +1092,7 @@ async def analyze_comments_with_tags_skill(
                     response_model=TagSystemGeneration  # 使用 TagSystemGeneration 模型
                 )
 
-                logger.info(f"[LLM RESPONSE] 帖子 {post.get('note_id')} 分析成功")
+                logger.info(f"[LLM RESPONSE] 帖子 {post.get('post_id')} 分析成功")
                 logger.debug(f"[LLM RESPONSE] 结果类型: {type(post_tags_result)}")
                 logger.debug(f"[LLM RESPONSE] 原始结果: {post_tags_result}")
 
@@ -1141,11 +1132,11 @@ async def analyze_comments_with_tags_skill(
                         else:
                             logger.debug(f"Category value is not a dict: {category_key} = {category_value}")
                 else:
-                    logger.warning(f"Invalid post_tags format for post {post.get('note_id')}: {type(post_tags)}")
+                    logger.warning(f"Invalid post_tags format for post {post.get('post_id')}: {type(post_tags)}")
                     post_tags = {}
 
                 analyzed_results.append({
-                    "note_id": post.get('note_id'),
+                    "post_id": post.get('post_id'),
                     "title": post.get('title', ''),
                     "comments_count": len(comments),
                     "tags": post_tags
@@ -1153,7 +1144,7 @@ async def analyze_comments_with_tags_skill(
 
             except Exception as e:
                 logger.error("=" * 60)
-                logger.error(f"[LLM ERROR] 帖子 {post.get('note_id')} 分析失败")
+                logger.error(f"[LLM ERROR] 帖子 {post.get('post_id')} 分析失败")
                 logger.error(f"[LLM ERROR] 错误类型: {type(e).__name__}")
                 logger.error(f"[LLM ERROR] 错误信息: {str(e)}")
                 logger.error(f"[LLM ERROR] 帖子标题: {post.get('title', '')[:100]}...")
@@ -1163,7 +1154,7 @@ async def analyze_comments_with_tags_skill(
                 logger.error("=" * 60)
                 # 失败的帖子添加空标签
                 analyzed_results.append({
-                    "note_id": post.get('note_id'),
+                    "post_id": post.get('post_id'),
                     "title": post.get('title', ''),
                     "comments_count": len(comments),
                     "tags": {},
@@ -1460,7 +1451,7 @@ async def generate_combined_analysis_from_posts_skill(
 业务创意："{business_idea}"
 
 === 数据摘要 ===
-相关笔记数: {summary.get('relevant_count', 0)}
+相关帖子数: {summary.get('relevant_count', 0)}
 相关性比例: {summary.get('relevance_rate', 0):.1%}
 平均互动评分: {summary.get('avg_engagement_score', 0):.1f}/10
 情感分布: {summary.get('sentiment_distribution', {})}
@@ -1582,7 +1573,7 @@ async def generate_combined_analysis_skill(
 
     Args:
         agent: Agent 实例
-        posts_analyses: 笔记分析结果
+        posts_analyses: 帖子分析结果
         comments_analyses: 评论分析结果
         business_idea: 业务创意
         max_retries: 最大重试次数
@@ -1620,7 +1611,7 @@ async def generate_combined_analysis_skill(
 业务创意："{business_idea}"
 
 === 数据摘要 ===
-相关笔记数: {summary.get('relevant_count', 0)}
+相关帖子数: {summary.get('relevant_count', 0)}
 相关性比例: {summary.get('relevance_rate', 0):.1%}
 平均互动评分: {summary.get('avg_engagement_score', 0):.1f}/10
 情感分布: {summary.get('sentiment_distribution', {})}
@@ -1784,7 +1775,7 @@ def _calculate_partial_summary(all_analyses: list, total_posts: int) -> dict:
 
     Args:
         all_analyses: 已完成的分析列表
-        total_posts: 总笔记数
+        total_posts: 总帖子数
 
     Returns:
         部分摘要字典
@@ -1814,7 +1805,7 @@ def _calculate_partial_summary(all_analyses: list, total_posts: int) -> dict:
         "sentiment_distribution": sentiment_counts,
         "avg_engagement_score": avg_engagement,
         "partial": True,
-        "note": f"部分结果：仅分析了 {len(all_analyses)}/{total_posts} 篇笔记"
+        "note": f"部分结果：仅分析了 {len(all_analyses)}/{total_posts} 篇帖子"
     }
 
 
@@ -1858,22 +1849,20 @@ def _calculate_partial_summary_with_comments(all_analyses: list, total_posts: in
     }
 
 
-def _fallback_analysis(note: Dict[str, Any], business_idea: str) -> Dict[str, Any]:
+def _fallback_analysis(post: Dict[str, Any], business_idea: str) -> Dict[str, Any]:
     """
-    Fallback 分析：基于规则的简单分析
-
-    当 LLM 失败时使用，确保系统能继续运行
+    Fallback 分析 - 当 LLM 分析失败时使用简单的关键词匹配
 
     Args:
-        note: 笔记数据
+        post: 帖子数据
         business_idea: 业务创意
 
     Returns:
         分析结果字典
     """
-    title = note.get('title', '').lower()
-    desc = note.get('desc', '').lower()
-    content = title + ' ' + desc
+    title = post.get('title', '').lower()
+    content = post.get('content', '').lower()
+    full_text = title + ' ' + content
 
     business_lower = business_idea.lower()
 
@@ -1887,19 +1876,18 @@ def _fallback_analysis(note: Dict[str, Any], business_idea: str) -> Dict[str, An
     # 检查内容中是否包含关键词
     match_count = 0
     for keyword in business_keywords:
-        if keyword in content:
+        if keyword in full_text:
             match_count += 1
 
     # 相关性判断：至少匹配一个关键词
     relevant = match_count > 0 or len(business_keywords) == 0
 
     # 基于互动数据的评分
-    liked = note.get('liked_count', 0)
-    collected = note.get('collected_count', 0)
-    comments = note.get('comments_count', 0)
+    score = post.get('score', 0)
+    num_comments = post.get('num_comments', 0)
 
     # 简单的互动评分 (1-10)
-    total_engagement = liked + collected * 2 + comments * 3
+    total_engagement = score + num_comments * 2
     if total_engagement > 1000:
         engagement_score = 10
     elif total_engagement > 500:

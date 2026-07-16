@@ -27,73 +27,6 @@ class KeywordRefinement(BaseModel):
 
 
 # ============================================================================
-# 小红书笔记相关
-# ============================================================================
-
-class XhsNoteModel(BaseModel):
-    """小红书笔记模型"""
-    note_id: str = Field(description="笔记 ID")
-    title: str = Field(description="标题")
-    desc: Optional[str] = Field(default=None, description="描述")
-    type: str = Field(default="normal", description="笔记类型: normal/video")
-    publish_time: int = Field(description="发布时间戳")
-    liked_count: int = Field(default=0, description="点赞数")
-    collected_count: int = Field(default=0, description="收藏数")
-    shared_count: int = Field(default=0, description="分享数")
-    comments_count: int = Field(default=0, description="评论数")
-    user_id: str = Field(description="用户 ID")
-    user_nickname: str = Field(description="用户昵称")
-    user_avatar: Optional[str] = Field(default=None, description="用户头像")
-    cover_url: Optional[str] = Field(default=None, description="封面图 URL")
-    images: List[str] = Field(default_factory=list, description="图片列表")
-    keyword_matched: Optional[str] = Field(default=None, description="匹配的关键词")
-
-
-class XhsCommentModel(BaseModel):
-    """小红书评论模型"""
-    comment_id: str = Field(description="评论 ID")
-    note_id: str = Field(description="笔记 ID")
-    content: str = Field(description="评论内容")
-    publish_time: int = Field(description="发布时间戳")
-    ip_location: Optional[str] = Field(default=None, description="IP 地理位置")
-    like_count: int = Field(default=0, description="点赞数")
-    user_id: str = Field(description="用户 ID")
-    user_nickname: str = Field(description="用户昵称")
-    parent_comment_id: Optional[str] = Field(default=None, description="父评论 ID")
-
-
-class PostWithComments(BaseModel):
-    """Post with embedded comments for unified analysis (supports both XHS and Reddit)"""
-    # Common fields (compatible with both XHS and Reddit)
-    note_id: str = Field(description="帖子/笔记 ID")
-    title: str = Field(description="标题")
-    desc: Optional[str] = Field(default=None, description="描述/内容")
-    type: str = Field(default="normal", description="帖子类型")
-    publish_time: int = Field(description="发布时间戳")
-    liked_count: int = Field(default=0, description="点赞数")
-    collected_count: int = Field(default=0, description="收藏数")
-    shared_count: int = Field(default=0, description="分享数")
-    comments_count: int = Field(default=0, description="评论数")
-    user_id: str = Field(description="用户 ID")
-    user_nickname: str = Field(description="用户昵称")
-    user_avatar: Optional[str] = Field(default=None, description="用户头像")
-    cover_url: Optional[str] = Field(default=None, description="封面图 URL")
-    images: List[str] = Field(default_factory=list, description="图片列表")
-    keyword_matched: Optional[str] = Field(default=None, description="匹配的关键词")
-
-    # Reddit-specific fields (optional)
-    url: Optional[str] = Field(default=None, description="帖子URL (Reddit)")
-    score: Optional[int] = Field(default=None, description="得分 (Reddit)")
-    upvote_ratio: Optional[float] = Field(default=None, description="点赞比例 (Reddit)")
-    subreddit: Optional[str] = Field(default=None, description="子版块名称 (Reddit)")
-
-    # Embedded comments (supports both XhsCommentModel and RedditCommentModel)
-    comments_data: List[Dict[str, Any]] = Field(default_factory=list, description="该帖子的评论数据")
-    comments_fetched: bool = Field(default=False, description="是否已获取评论")
-    comments_fetch_error: Optional[str] = Field(default=None, description="评论获取错误信息")
-
-
-# ============================================================================
 # Reddit帖子相关
 # ============================================================================
 
@@ -124,24 +57,32 @@ class RedditCommentModel(BaseModel):
     depth: int = Field(default=0, description="评论深度（层级）")
 
 
+class PostWithComments(BaseModel):
+    """Post with embedded comments for analysis (Reddit)"""
+    post_id: str = Field(description="帖子 ID")
+    title: str = Field(description="标题")
+    content: Optional[str] = Field(default=None, description="内容描述")
+    url: Optional[str] = Field(default=None, description="帖子URL")
+    score: Optional[int] = Field(default=None, description="得分（点赞数）")
+    upvote_ratio: Optional[float] = Field(default=None, description="点赞比例")
+    subreddit: Optional[str] = Field(default=None, description="子版块名称")
+    num_comments: int = Field(default=0, description="评论数")
+    created_utc: Optional[int] = Field(default=None, description="创建时间戳（UTC）")
+    author: Optional[str] = Field(default=None, description="作者用户名")
+    keyword_matched: Optional[str] = Field(default=None, description="匹配的关键词")
+
+    comments_data: List[Dict[str, Any]] = Field(default_factory=list, description="该帖子的评论数据")
+    comments_fetched: bool = Field(default=False, description="是否已获取评论")
+    comments_fetch_error: Optional[str] = Field(default=None, description="评论获取错误信息")
+
+
 # ============================================================================
 # 分析相关
 # ============================================================================
 
-class XhsPostAnalysis(BaseModel):
-    """小红书帖子分析结果"""
-    relevant: bool = Field(description="是否与业务创意相关")
-    pain_points: List[str] = Field(default_factory=list, description="用户痛点")
-    solutions_mentioned: List[str] = Field(default_factory=list, description="提到的解决方案")
-    market_signals: List[str] = Field(default_factory=list, description="市场信号")
-    sentiment: str = Field(description="情感倾向: positive/negative/neutral")
-    engagement_score: int = Field(default=0, ge=1, le=10, description="互动评分 1-10")
-    analysis_summary: Optional[str] = Field(default=None, description="分析摘要")
-
-
 class PostWithCommentsAnalysis(BaseModel):
     """Unified analysis result for post + its comments"""
-    note_id: str = Field(description="笔记 ID")
+    post_id: str = Field(description="帖子 ID")
     title: str = Field(description="标题")
 
     # Core analysis (from post + comments)

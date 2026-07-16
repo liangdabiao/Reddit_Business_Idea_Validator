@@ -116,7 +116,7 @@ class BaseAgent(ABC):
         调用 MCP 服务器工具
 
         Args:
-            server_name: MCP 服务器名称 (xhs/llm/storage)
+            server_name: MCP 服务器名称 (reddit/llm/storage)
             tool_name: 工具名称
             **kwargs: 工具参数
 

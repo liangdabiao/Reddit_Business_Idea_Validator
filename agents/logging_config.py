@@ -112,7 +112,7 @@ class RequestLogger:
         记录API请求
 
         Args:
-            api_name: API名称 (如 "LLM", "XHS")
+            api_name: API名称 (如 "LLM", "Reddit")
             method: 请求方法
             url: 请求URL
             params: 查询参数

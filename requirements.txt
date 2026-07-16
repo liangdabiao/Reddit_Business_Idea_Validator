@@ -5,12 +5,4 @@ python-dotenv>=1.0.0
 pydantic>=2.5.0
 openai>=1.0.0
 praw>=7.7.0
-
-# Original requirements (kept for compatibility)
-streamlit==1.31.0
-plotly==5.18.0
-pandas==2.1.4
-matplotlib==3.8.2
-numpy==1.26.3
-pydantic==2.5.3
-beautifulsoup4==4.13.4
+flask>=3.0.0

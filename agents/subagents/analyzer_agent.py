@@ -1,7 +1,7 @@
 """
 数据分析 Agent
 
-负责分析小红书笔记和评论数据
+负责分析 Reddit 帖子和评论数据
 """
 
 import logging
@@ -230,10 +230,19 @@ class AnalyzerAgent(BaseAgent):
         posts_with_comments = context.get("posts_with_comments", kwargs.get("posts_with_comments", []))
         business_idea = context.get("business_idea", kwargs.get("business_idea", ""))
 
-        if not posts_with_comments:
-            raise ValueError("posts_with_comments is required")
         if not business_idea:
             raise ValueError("business_idea is required")
+
+        if not posts_with_comments:
+            logger.warning("No posts for tag analysis, returning empty result")
+            return {
+                "success": True,
+                "tag_analysis": {},
+                "total_posts_analyzed": 0,
+                "total_tags_applied": 0,
+                "tag_statistics": {},
+                "analysis_summary": "无数据可分析"
+            }
 
         self.update_progress(
             "analyzing_comments_with_tags",
@@ -374,10 +383,25 @@ class AnalyzerAgent(BaseAgent):
         posts_with_comments = context.get("posts_with_comments", kwargs.get("posts_with_comments", []))
         business_idea = context.get("business_idea", kwargs.get("business_idea", ""))
 
-        if not posts_with_comments:
-            raise ValueError("posts_with_comments is required")
         if not business_idea:
             raise ValueError("business_idea is required")
+
+        if not posts_with_comments:
+            logger.warning("No posts to analyze, returning empty result")
+            return {
+                "success": True,
+                "total_posts": 0,
+                "analyses": [],
+                "relevant_posts": [],
+                "summary": {
+                    "total_posts": 0,
+                    "successful_count": 0,
+                    "failed_count": 0,
+                    "skipped_count": 0,
+                    "relevant_count": 0,
+                    "relevance_rate": 0.0
+                }
+            }
 
         # 从配置获取最大分析帖子数
         from agents.config import ConfigManager
@@ -545,6 +569,33 @@ class AnalyzerAgent(BaseAgent):
         relevant_posts = posts_with_comments_analyses.get("relevant_posts", [])
         summary = posts_with_comments_analyses.get("summary", {})
 
+        if not relevant_posts:
+            logger.warning("No relevant posts for combined analysis, returning fallback result")
+            fallback = {
+                "success": True,
+                "analysis": {
+                    "overall_score": 0,
+                    "market_validation_summary": f"未找到与 '{business_idea}' 相关的帖子数据，无法进行分析。请尝试更换关键词或增加搜索范围。",
+                    "key_pain_points": [],
+                    "existing_solutions": [],
+                    "market_opportunities": [],
+                    "recommendations": ["尝试使用更宽泛的关键词", "增加搜索页数", "检查 Reddit API 连接是否正常"],
+                    "metadata": {
+                        "total_posts_analyzed": summary.get('total_posts', 0),
+                        "relevant_posts": 0,
+                        "avg_engagement_score": 0,
+                        "avg_sentiment": 0,
+                        "sentiment_distribution": {"positive": 0, "neutral": 0, "negative": 0},
+                        "total_comments_analyzed": 0,
+                        "recent_posts_30days": 0,
+                        "top_posts": [],
+                        "analysis_date": datetime.now().isoformat(),
+                        "note": "无相关数据"
+                    }
+                }
+            }
+            return fallback
+
         # 1. 收集定性洞察（现有 - 保留）
         all_pain_points = []
         all_solutions = []
@@ -588,23 +639,20 @@ class AnalyzerAgent(BaseAgent):
 
             # 原始帖子互动量
             total_engagement = (
-                post.get("liked_count", 0) +
-                post.get("collected_count", 0) * 2 +  # 收藏加权更高
-                post.get("shared_count", 0) * 3 +  # 分享加权更高
-                post.get("comments_count", 0)
+                post.get("score", 0) +
+                post.get("num_comments", 0) * 2
             )
             all_post_engagement.append({
-                "note_id": post.get("note_id"),
+                "post_id": post.get("post_id"),
                 "title": post.get("title"),
                 "total_engagement": total_engagement,
-                "likes": post.get("liked_count", 0),
-                "saves": post.get("collected_count", 0),
-                "shares": post.get("shared_count", 0),
-                "comments": post.get("comments_count", 0)
+                "score": post.get("score", 0),
+                "upvote_ratio": post.get("upvote_ratio", 0),
+                "num_comments": post.get("num_comments", 0),
+                "subreddit": post.get("subreddit", "")
             })
 
-            # 新增：时间分析
-            publish_time = post.get("publish_time", 0)
+            publish_time = post.get("created_utc", 0)
             if publish_time:
                 post_date = datetime.fromtimestamp(publish_time)
                 if post_date > datetime.now() - timedelta(days=30):
@@ -643,6 +691,20 @@ class AnalyzerAgent(BaseAgent):
             "negative": feedback_sentiments.count("negative")
         }
 
+        # Reddit 特有统计指标
+        total_score = 0
+        total_upvote_ratio = 0
+        subreddit_counts = {}
+        for item in relevant_posts:
+            post = item.get("post", {})
+            total_score += post.get("score", 0)
+            total_upvote_ratio += post.get("upvote_ratio", 0)
+            subreddit = post.get("subreddit", "unknown")
+            subreddit_counts[subreddit] = subreddit_counts.get(subreddit, 0) + 1
+
+        avg_score = total_score / len(relevant_posts) if relevant_posts else 0
+        avg_upvote_ratio = total_upvote_ratio / len(relevant_posts) if relevant_posts else 0
+
         # 按互动量排序的热门帖子
         top_posts_sorted = sorted(top_posts, key=lambda x: x["total_engagement"], reverse=True)[:3]
 
@@ -665,7 +727,8 @@ class AnalyzerAgent(BaseAgent):
 === 热门帖子 TOP 3（按互动量排序）===
 {chr(10).join(
     f"{i+1}. 【{p['post'].get('title', '无标题')}】"
-    f"   互动量: {p['total_engagement']:,} (赞:{p['post'].get('liked_count',0)} 收藏:{p['post'].get('collected_count',0)} 分享:{p['post'].get('shared_count',0)} 评论:{p['post'].get('comments_count',0)})"
+    f"   r/{p['post'].get('subreddit', 'N/A')}"
+    f"   互动量: {p['total_engagement']:,} (得分:{p['post'].get('score',0)} 点赞率:{p['post'].get('upvote_ratio',0):.0%} 评论:{p['post'].get('num_comments',0)})"
     f"   AI评分: {p['engagement_score']}/10"
     f"   情感: {p['analysis'].get('sentiment', 'neutral')}"
     for i, p in enumerate(top_posts_sorted)
@@ -740,20 +803,24 @@ class AnalyzerAgent(BaseAgent):
                     "total_comments_analyzed": total_comments_analyzed,
                     "recent_posts_30days": recent_posts_count,
                     "top_posts_engagement": [p['total_engagement'] for p in top_posts_sorted],
+                    "avg_score": avg_score,
+                    "avg_upvote_ratio": avg_upvote_ratio,
+                    "subreddit_distribution": subreddit_counts,
                     "top_posts": [
                         {
-                            "note_id": p['post'].get('note_id'),
+                            "post_id": p['post'].get('post_id'),
                             "title": p['post'].get('title'),
-                            "content": p['post'].get('desc', ''),
-                            "liked_count": p['post'].get('liked_count', 0),
-                            "collected_count": p['post'].get('collected_count', 0),
-                            "shared_count": p['post'].get('shared_count', 0),
-                            "comments_count": p['post'].get('comments_count', 0),
+                            "content": p['post'].get('content', ''),
+                            "url": p['post'].get('url', ''),
+                            "score": p['post'].get('score', 0),
+                            "upvote_ratio": p['post'].get('upvote_ratio', 0),
+                            "num_comments": p['post'].get('num_comments', 0),
+                            "subreddit": p['post'].get('subreddit', ''),
                             "total_engagement": p['total_engagement'],
                             "engagement_score": p['engagement_score'],
                             "sentiment": p['analysis'].get('sentiment', 'neutral'),
                             "analysis_summary": p['analysis'].get('analysis_summary', ''),
-                            "comments": p['post'].get('comments', [])
+                            "comments": p['post'].get('comments_data', [])
                         }
                         for p in top_posts_sorted
                     ],
@@ -807,20 +874,24 @@ class AnalyzerAgent(BaseAgent):
                             "total_comments_analyzed": total_comments_analyzed,
                             "recent_posts_30days": recent_posts_count,
                             "top_posts_engagement": [p['total_engagement'] for p in top_posts_sorted],
+                            "avg_score": avg_score,
+                            "avg_upvote_ratio": avg_upvote_ratio,
+                            "subreddit_distribution": subreddit_counts,
                             "top_posts": [
                                 {
-                                    "note_id": p['post'].get('note_id'),
+                                    "post_id": p['post'].get('post_id'),
                                     "title": p['post'].get('title'),
-                                    "content": p['post'].get('desc', ''),
-                                    "liked_count": p['post'].get('liked_count', 0),
-                                    "collected_count": p['post'].get('collected_count', 0),
-                                    "shared_count": p['post'].get('shared_count', 0),
-                                    "comments_count": p['post'].get('comments_count', 0),
+                                    "content": p['post'].get('content', ''),
+                                    "url": p['post'].get('url', ''),
+                                    "score": p['post'].get('score', 0),
+                                    "upvote_ratio": p['post'].get('upvote_ratio', 0),
+                                    "num_comments": p['post'].get('num_comments', 0),
+                                    "subreddit": p['post'].get('subreddit', ''),
                                     "total_engagement": p['total_engagement'],
                                     "engagement_score": p['engagement_score'],
                                     "sentiment": p['analysis'].get('sentiment', 'neutral'),
                                     "analysis_summary": p['analysis'].get('analysis_summary', ''),
-                                    "comments": p['post'].get('comments', [])
+                                    "comments": p['post'].get('comments_data', [])
                                 }
                                 for p in top_posts_sorted
                             ],
@@ -854,20 +925,24 @@ class AnalyzerAgent(BaseAgent):
                             "sentiment_distribution": sentiment_dist,
                             "total_comments_analyzed": total_comments_analyzed,
                             "recent_posts_30days": recent_posts_count,
+                            "avg_score": avg_score,
+                            "avg_upvote_ratio": avg_upvote_ratio,
+                            "subreddit_distribution": subreddit_counts,
                             "top_posts": [
                                 {
-                                    "note_id": p['post'].get('note_id'),
+                                    "post_id": p['post'].get('post_id'),
                                     "title": p['post'].get('title'),
-                                    "content": p['post'].get('desc', ''),
-                                    "liked_count": p['post'].get('liked_count', 0),
-                                    "collected_count": p['post'].get('collected_count', 0),
-                                    "shared_count": p['post'].get('shared_count', 0),
-                                    "comments_count": p['post'].get('comments_count', 0),
+                                    "content": p['post'].get('content', ''),
+                                    "url": p['post'].get('url', ''),
+                                    "score": p['post'].get('score', 0),
+                                    "upvote_ratio": p['post'].get('upvote_ratio', 0),
+                                    "num_comments": p['post'].get('num_comments', 0),
+                                    "subreddit": p['post'].get('subreddit', ''),
                                     "total_engagement": p['total_engagement'],
                                     "engagement_score": p['engagement_score'],
                                     "sentiment": p['analysis'].get('sentiment', 'neutral'),
                                     "analysis_summary": p['analysis'].get('analysis_summary', ''),
-                                    "comments": p['post'].get('comments', [])
+                                    "comments": p['post'].get('comments_data', [])
                                 }
                                 for p in top_posts_sorted
                             ]

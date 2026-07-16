@@ -21,9 +21,6 @@ from .context_models import (
 )
 from .business_models import (
     KeywordModel,
-    XhsNoteModel,
-    XhsCommentModel,
-    XhsPostAnalysis,
     CombinedAnalysis
 )
 
@@ -43,8 +40,5 @@ __all__ = [
     "AgentState",
     # Business 模型
     "KeywordModel",
-    "XhsNoteModel",
-    "XhsCommentModel",
-    "XhsPostAnalysis",
     "CombinedAnalysis",
 ]

@@ -43,7 +43,11 @@ async def test_comment_merging():
         user_agent=reddit_config.user_agent
     )
     await reddit_server.start()
-    llm_server = await create_llm_mcp_server(llm_config.api_key, llm_config.base_url)
+    llm_server = await create_llm_mcp_server(
+        llm_config.api_key,
+        llm_config.base_url,
+        llm_config.model_name
+    )
     storage_server = await create_storage_mcp_server("agent_context/checkpoints")
 
     mcp_clients = {

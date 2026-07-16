@@ -36,8 +36,7 @@ REDDIT_CLIENT_ID="your_reddit_client_id"
 REDDIT_CLIENT_SECRET="your_reddit_client_secret"
 REDDIT_USER_AGENT="BusinessResearchAgent/1.0 by your_reddit_username"
 
-# OR Xiaohongshu (via TikHub)
-TIKHUB_TOKEN="your_tikhub_token"
+ 
 
 # Optional settings
 SCRAPER_PAGES_PER_KEYWORD=2
@@ -249,7 +248,7 @@ All config centralized in `agents/config.py`:
 **Required environment variables:**
 - `OPENAI_API_KEY`: OpenAI API key (or compatible proxy)
 - `REDDIT_CLIENT_ID` + `REDDIT_CLIENT_SECRET` + `REDDIT_USER_AGENT` (for Reddit)
-- **OR** `TIKHUB_TOKEN` (for Xiaohongshu)
+ 
 
 **Optional variables:**
 - `OPENAI_BASE_URL`: Alternative API endpoint

@@ -78,7 +78,11 @@ async def validate_business_idea(
         user_agent=reddit_config.user_agent
     )
     await reddit_server.start()
-    llm_server = await create_llm_mcp_server(llm_config.api_key, llm_config.base_url)
+    llm_server = await create_llm_mcp_server(
+        llm_config.api_key,
+        llm_config.base_url,
+        llm_config.model_name
+    )
     storage_server = await create_storage_mcp_server("agent_context/checkpoints")
 
     mcp_clients = {
@@ -194,9 +198,25 @@ def main():
     """主函数"""
     print_banner()
 
-    # 获取业务创意
-    if len(sys.argv) > 1:
-        business_idea = " ".join(sys.argv[1:])
+    # 获取业务创意和快速模式参数
+    args = sys.argv[1:]
+    fast_mode = False
+    business_idea = ""
+    
+    # 解析参数
+    positional_args = []
+    for arg in args:
+        if arg in ('--fast', '-f'):
+            fast_mode = True
+        elif arg in ('--pages', '-p'):
+            pass  # handled below with next arg
+        elif arg in ('--comments', '-c'):
+            pass
+        else:
+            positional_args.append(arg)
+    
+    if positional_args:
+        business_idea = " ".join(positional_args)
     else:
         print("请输入您的业务创意 (按 Enter 确认):")
         business_idea = input("> ").strip()
@@ -204,26 +224,28 @@ def main():
         if not business_idea:
             print("\n❌ 业务创意不能为空!")
             print("\n使用方式:")
-            print("  python run_agent.py <业务创意>")
-            print("  示例: python run_agent.py 在深圳卖陈皮")
+            print("  python run_agent.py <业务创意> [--fast]")
+            print("  示例: python run_agent.py AI productivity tools --fast")
             return 1
 
-    # 可选：询问是否使用快速模式
-    print("\n⚡ 是否使用快速模式？(更少的数据，更快的执行)")
-    fast_mode = input("输入 y 使用快速模式，其他键使用完整模式: ").strip().lower()
+    # 询问是否使用快速模式（仅当没有指定 --fast 且在交互模式下）
+    if not fast_mode and sys.stdin.isatty():
+        print("\n⚡ 是否使用快速模式？(更少的数据，更快的执行)")
+        fast_input = input("输入 y 使用快速模式，其他键使用完整模式: ").strip().lower()
+        fast_mode = (fast_input == 'y')
 
-    if fast_mode == 'y':
-        keyword_count = 1  # 快速模式：直接使用用户输入作为关键词
+    if fast_mode:
+        keyword_count = 1
         pages_per_keyword = 1
         comments_per_post = 5
-        use_user_input_as_keyword = True  # 直接使用用户输入
-        print("\n使用快速模式: 直接使用您的输入作为关键词 × 1 页 × 5 评论")
+        use_user_input_as_keyword = True
+        print("\n⚡ 使用快速模式: 1 关键词 × 1 页 × 5 评论")
     else:
         keyword_count = 3
         pages_per_keyword = 2
         comments_per_post = 20
         use_user_input_as_keyword = False
-        print("\n使用完整模式: 3 关键词 × 2 页 × 20 评论")
+        print("\n📊 使用完整模式: 3 关键词 × 2 页 × 20 评论")
 
     # 运行验证
     try:
