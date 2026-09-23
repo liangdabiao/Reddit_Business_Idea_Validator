@@ -14,6 +14,10 @@ Reddit 汇聚着包罗万象的生活问题和经验分享，是年轻人常用�
 
 消费者不是没有需求，而是需求太具体。
 
+skill版本： https://github.com/liangdabiao/reddit-business-idea-validator
+
+agent线上使用： https://reddit-business.liangdabiao.com/
+
 <br />
 
 **AI 智能体Agent化身你的私人创投分析师**——从创业点子脑暴，到完整验证，再到 Go-to-Market 落地策略，一站式包办。专为"宁可 10 分钟验证、不愿 6 个月后悔"的生意人打造。 
